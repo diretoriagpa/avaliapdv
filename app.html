@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="theme-color" content="#016ab6">
 <title>Guapi A&B · Qualidade Operacional</title>
-<meta name="redirect" content="guapi-ab-qualidade.hf.space">
-<script>if(!location.hostname.includes("hf.space")&&!location.hostname.includes("hugging")&&location.protocol==="https:"&&location.hostname!=="localhost"&&location.hostname!=="127.0.0.1"){location.replace("https://guapi-ab-qualidade.hf.space"+location.pathname.replace(/[^\/]*$/,""))}</script>
 <style>
 :root{--azul:#016ab6;--ciano:#00d2f4;--verde:#88e800;--ouro:#ffb81c;--laranja:#f58424;--magenta:#dc0847;--bg:#f2f8fc;--card:#fff;--txt:#123a55;--mut:#6b8ba3;--ok:#3aa657;--warn:#e0a800;--err:#d64545}
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
@@ -100,7 +98,6 @@ const CATS_SAI=['Compra','Folha','Taxas','Impostos','Energia','Outros'];
 const MOTIVOS_DESP=['Vencimento','Preparo excedente','Sobra de exposição','Quebra/avaria','Falha operacional'];
 const PERFIS={gerente:'Gerente de A&B',validador:'Validação e Auditoria',diretoria:'Diretoria',colaborador:'Colaborador'};
 let S=null, TAB='painel', SUB={}, EDIT=null;
-
 const DEF_PARAMS={roiMinimo:36,poolPct:5,pontosIniciais:100,
  pesos:{fin:35,proc:30,cli:20,pes:15},
  reguaIDC:[[90,1.00],[80,0.85],[70,0.65],[60,0.35],[0,0]],
@@ -108,14 +105,12 @@ const DEF_PARAMS={roiMinimo:36,poolPct:5,pontosIniciais:100,
  dedFaltaLeve:0.1,dedFaltaMedia:0.2,dedFaltaGrave:0.6,dedTreinamentoPDV:10,
  calendario:[5,7,10],tarifaKwh:1.20,minCobertura:3000,empresaParque:{nome:'GPA EVENTOS LTDA',cnpj:'50.528.457/0001-41'},
  toleranciaDesperdicio:2,reclamacaoPerda:2};
-
 function uid(){return Math.random().toString(36).slice(2,10)}
 function hoje(){return new Date().toISOString().slice(0,10)}
 function mesAtual(){return hoje().slice(0,7)}
 function fmtM(v){return (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
 function fmtD(d){if(!d)return'—';const[a,b,c]=d.split('-');return c+'/'+b+'/'+a}
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-
 function seed(){
  S={pdvs:[],funcs:[],forms:[],itens:[],mats:[],forns:[],lancs:[],ocors:[],desps:[],ents:[],deds:[],sais:[],apur:[],repasses:[],multas:[],fichas:[],fotos:{},params:JSON.parse(JSON.stringify(DEF_PARAMS)),aud:[],usuario:null};
  const F=(nome,cargo,nivel,regime,perfil,eleg)=>({id:uid(),nome,cpf:'',email:'',tel:'',cargo,nivel,regime,pdvs:[],perfil,elegivelComissao:eleg,ativo:true});
@@ -186,7 +181,7 @@ function load(){try{const r=localStorage.getItem(PKEY);if(r){S=JSON.parse(r);
 let CLOUD_ENABLED=false;
 function save(){try{localStorage.setItem(PKEY,JSON.stringify(S))}catch(e){alert('Armazenamento cheio — reduza fotos ou exporte os dados.')}
  if(CLOUD_ENABLED)syncPush()}
-function syncPush(){try{fetch(SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)}).catch(()=>{})}catch(e){}}
+function syncPush(){try{fetch('/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)}).catch(()=>{})}catch(e){}}
 function aud(acao,detalhe){S.aud.unshift({ts:new Date().toLocaleString('pt-BR'),usuario:nomeUsu(),acao,detalhe});if(S.aud.length>400)S.aud.pop()}
 function nomeUsu(){const f=funcById(S.usuario);return f?f.nome:'—'}
 function funcById(id){return S.funcs.find(f=>f.id===id)}
@@ -203,11 +198,9 @@ function podeParam(){const u=eu();return u&&u.perfil==='diretoria'}
 function fatorIDC(pts){for(const[lim,f]of S.params.reguaIDC){if(pts>=lim)return f}return 0}
 function rotuloIDC(pts){return pts>=90?'Superior':pts>=80?'Adequado':pts>=70?'Em recuperação':pts>=60?'Insuficiente':'Crítico'}
 function corIDC(pts){return pts>=90?'t-ok':pts>=80?'t-info':pts>=70?'t-warn':'t-err'}
-
 /* ---------- auth ---------- */
 function login(id){S.usuario=id;aud('Login','Acesso ao sistema');save();go('painel')}
 function logout(){S.usuario=null;save();go('painel')}
-
 /* ---------- router ---------- */
 const TABS=[['painel','🏠','Painel'],['lanc','✅','Lançamentos'],['equipe','👤','Equipe'],['desp','🗑️','Desperdício'],['fin','💰','Entradas e Saídas'],['rep','🧾','Repasse'],['apur','📊','Apuração'],['rel','📄','Relatórios'],['cad','⚙️','Cadastros'],['param','🔧','Parâmetros']];
 function go(t,s){TAB=t;if(s)SUB[t]=s;render();window.scrollTo(0,0)}
@@ -244,7 +237,6 @@ function bottomNavHTML(){
 function selPDV(id){return `<select onchange="${id}fn=this.value">${S.pdvs.filter(p=>p.ativo).map(p=>`<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>`}
 function opt(v,cur){return `<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(v)}</option>`}
 function badgeStatus(st){const m={rascunho:['t-mut','Rascunho'],lancado:['t-info','Lançado'],conciliado:['t-ok','Conciliado'],previsto:['t-warn','Previsto'],pago:['t-ok','Pago'],estornado:['t-err','Estornado'],pendente:['t-warn','Pendente'],validado:['t-ok','Validado'],concluido:['t-info','Concluído'],aberta:['t-warn','Aberta'],fechada:['t-ok','Fechada']};const x=m[st]||['t-mut',st];return `<span class="tag ${x[0]}">${x[1]}</span>`}
-
 /* ---------- PAINEL ---------- */
 function painelHTML(){
  const mes=mesAtual();
@@ -296,7 +288,6 @@ function painelHTML(){
   </table></div>
  <div class="card"><h2><span class="dot"></span>Última apuração</h2>${apurResumoHTML()}</div>`;
 }
-
 /* ---------- LANÇAMENTOS DIÁRIOS (checklist) ---------- */
 function lancHTML(){
  if(!S.forms.length)return '<div class="card empty">Cadastre um formulário de qualidade em Cadastros.</div>';
@@ -455,7 +446,6 @@ function salvarLanc(status){
 }
 function excluirLanc(id){if(!pode('*'))return;if(confirm('Excluir este lançamento?')){S.lancs=S.lancs.filter(l=>l.id!==id);save();render()}}
 function validarLanc(id){if(!pode('validar'))return alert('Sem permissão.');const l=S.lancs.find(x=>x.id===id);l.status='validado';l.validadoPor=S.usuario;aud('Validação',`Checklist ${pdvById(l.pdv)?.nome} ${l.data} validado`);save();render()}
-
 /* ---------- PONTOS INDIVIDUAIS (Equipe) ---------- */
 function equipeHTML(){
  const mes=SUB.eqMes||mesAtual();
@@ -494,7 +484,6 @@ function salvarOcor(){
  aud('Ocorrência individual',`${tipo} — dedução ${ded} pt`);closeModal();save();render();
 }
 function validarOcor(id){if(!pode('validar'))return alert('Sem permissão.');const o=S.ocors.find(x=>x.id===id);o.status='validado';o.validadoPor=S.usuario;aud('Validação','Ocorrência validada');save();render()}
-
 /* ---------- DESPERDÍCIO ---------- */
 function despHTML(){
  const mes=SUB.dpMes||mesAtual();
@@ -537,7 +526,6 @@ function salvarDesp(){
  S.desps.push({id:uid(),pdv:document.getElementById('dPdv').value,data:document.getElementById('dData').value,mat:m.id,qtd:q,motivo:document.getElementById('dMot').value,custo:m.custo*q});
  aud('Desperdício',`${m.nome} × ${q} — ${fmtM(m.custo*q)}`);closeModal();save();render();
 }
-
 function editarEnt(id){
  if(!pode('*'))return alert('Somente o Gerente de A&B edita lançamentos.');
  const e=S.ents.find(x=>x.id===id);if(!e)return;
@@ -731,7 +719,6 @@ function finFluxHTML(mes){
   <button class="btn" style="margin-top:10px" onclick="pdfFluxo('${mes}')">📄 Exportar fluxo em PDF</button></div>`;
 }
 function delReg(coll,id){if(!pode('*'))return alert('Somente o Gerente de A&B exclui lançamentos.');if(confirm('Excluir este lançamento?')){S[coll]=S[coll].filter(x=>x.id!==id);save();render()}}
-
 /* ---------- REPASSE TERCEIRIZADOS ---------- */
 function calcRepasse(from,to){
  const inP=d=>d>=from&&d<=to;
@@ -1017,7 +1004,6 @@ function fecharApuracao(){
  if(existente>=0)S.apur[existente]=reg;else S.apur.push(reg);
  aud('Apuração fechada',`${mes} — pool ${fmtM(calc.pool)}`);save();render();
 }
-
 /* ---------- RELATÓRIOS ---------- */
 function relHTML(){
  return `
@@ -1109,7 +1095,6 @@ function exportJSON(){
  const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='guapi-ab-backup-'+hoje()+'.json';a.click();
 }
-
 /* ---------- CADASTROS ---------- */
 function cadHTML(){
  if(!pode('*'))return '<div class="card empty">🔒 Cadastros restritos ao Gerente de A&B.</div>';
@@ -1270,7 +1255,6 @@ function salvarForn(id){
  if(id)Object.assign(S.forns.find(x=>x.id===id),dados);else S.forns.push({id:uid(),...dados});
  save();closeModal();render();
 }
-
 /* ---------- importação CSV (materiais e fornecedores) ---------- */
 function parseCSV(text){
  const rows=[];let row=[],field='',inQ=false;
@@ -1328,7 +1312,6 @@ function exemploCSV(kind){
  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=kind==='mats'?'modelo-materiais.csv':'modelo-fornecedores.csv';a.click();
 }
-
 /* ---------- PARÂMETROS ---------- */
 function paramHTML(){
  if(!podeParam())return '<div class="card empty">🔒 Parâmetros restritos à Diretoria.</div>';
@@ -1387,11 +1370,9 @@ function salvarParams(){
  aud('Parâmetros','Modelo atualizado (valores anteriores registrados na trilha)');
  save();render();
 }
-
 /* ---------- modal ---------- */
 function openModal(html){const d=document.createElement('div');d.className='modalbg';d.id='mbg';d.innerHTML=`<div class="modal">${html}</div>`;d.onclick=e=>{if(e.target===d)closeModal()};document.body.appendChild(d)}
 function closeModal(){document.getElementById('mbg')?.remove()}
-
 /* ---------- router body ---------- */
 function bodyHTML(){
  switch(TAB){
@@ -1409,13 +1390,12 @@ function bodyHTML(){
  }
 }
 (async function boot(){
- if(location.hostname.includes('hf.space')||location.hostname.includes('vercel.app')||location.hostname.includes('onrender')){
+ const local=location.protocol==='file:'||location.hostname==='localhost'||location.hostname==='127.0.0.1';
+ if(!local){
   try{const r=await fetch('/data');if(r.ok){const d=await r.json();if(d&&d.pdvs){S=d;CLOUD_ENABLED=true;localStorage.setItem(PKEY,JSON.stringify(S));render();return}}}catch(e){}
  }
  load();render();
 })();
 </script>
-
-
 </body>
 </html>
