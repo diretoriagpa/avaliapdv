@@ -8,6 +8,10 @@
 <!-- ================================================================
   guapi-ab — v3.0.0 (08/10/2026) · arquivo único HTML+JS (PWA)
   CHANGELOG:
+   v3.1.0 — restauração da base no servidor (histórico 2.2 + out/26 + metas);
+            repasse: botão "Enviar todos por WhatsApp" em lote;
+            cadastro de CENTROS DE CUSTO (Cadastros → Centros de custo) c/ uso
+            nos lançamentos de saída (além dos PDVs).
    v3.0.0 — REDESIGN de navegação: menu lateral fixo à esquerda com 4 grupos
             (Operação · Financeiro · Resultados · Administração), badges de pendência,
             drawer no mobile, topbar com título da tela, alvos de toque ≥48px,
@@ -188,7 +192,8 @@ function fmtM(v){return (v||0).toLocaleString('pt-BR',{style:'currency',currency
 function fmtD(d){if(!d)return'—';const[a,b,c]=d.split('-');return c+'/'+b+'/'+a}
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function seed(){
- S={pdvs:[],funcs:[],forms:[],itens:[],mats:[],forns:[],lancs:[],ocors:[],desps:[],ents:[],deds:[],sais:[],apur:[],repasses:[],multas:[],fichas:[],fotos:{},metas:{},tiposDesc:[],pendenciasTipo:[],compras:[],compraSeq:0,params:JSON.parse(JSON.stringify(DEF_PARAMS)),aud:[],usuario:null};
+ S={pdvs:[],funcs:[],forms:[],itens:[],mats:[],forns:[],lancs:[],ocors:[],desps:[],ents:[],deds:[],sais:[],apur:[],repasses:[],multas:[],fichas:[],fotos:{},metas:{},tiposDesc:[],pendenciasTipo:[],compras:[],compraSeq:0,centros:[],params:JSON.parse(JSON.stringify(DEF_PARAMS)),aud:[],usuario:null};
+ S.centros=[{id:uid(),nome:'A&B geral',tipo:'setorial',ativo:true},{id:uid(),nome:'Área comum / parque',tipo:'area',ativo:true}];
  CAT_DESC_PADRAO.forEach(([nome])=>S.tiposDesc.push({id:uid(),nome,ativo:true}));
  const F=(nome,cargo,nivel,regime,perfil,eleg)=>({id:uid(),nome,cpf:'',email:'',tel:'',cargo,nivel,regime,pdvs:[],perfil,elegivelComissao:eleg,ativo:true});
  const f1=F('Marcella Chagas','Diretora',5,'Fixo','diretoria',false);
@@ -302,6 +307,7 @@ function load(){try{const r=localStorage.getItem(PKEY);if(r){S=JSON.parse(r);
 function migraR1(){
  if(!S.tiposDesc||!S.tiposDesc.length)S.tiposDesc=CAT_DESC_PADRAO.map(([nome])=>({id:uid(),nome,ativo:true}));
  if(!S.pendenciasTipo)S.pendenciasTipo=[];
+ if(!S.centros)S.centros=[{id:uid(),nome:'A&B geral',tipo:'setorial',ativo:true},{id:uid(),nome:'Área comum / parque',tipo:'area',ativo:true}];
  let migT=0,pendT=0;
  (S.sais||[]).forEach(x=>{
   if(x.tipoId!==undefined)return;
@@ -990,7 +996,7 @@ function modalSai(){
   <label>Vencimento (se previsto)</label><input type="date" id="sVenc">
   <label>Descrição</label><input id="sDesc" placeholder="Obrigatória">
   <label>Fornecedor/Credor</label><select id="sForn"><option value="">—</option>${S.forns.map(f=>`<option value="${f.id}">${esc(f.nome)}</option>`).join('')}</select>
-  <label>Centro de custo</label><select id="sCentro"><option value="">A&B geral</option>${S.pdvs.map(p=>`<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
+  <label>Centro de custo</label><select id="sCentro"><option value="">A&B geral</option>${S.pdvs.filter(p=>p.ativo).map(p=>`<option value="${p.id}">${esc(p.nome)}</option>`).join('')}${(S.centros||[]).filter(c=>c.ativo).map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join('')}</select>
   <label>Valor (R$)</label><input type="number" id="sVal" step="0.01" min="0.01">
   <label>Status</label><select id="sSt"><option value="previsto">Previsto (conta a pagar)</option><option value="pago">Pago</option></select>
   <label>Forma de pagamento (se pago)</label><select id="sForma"><option value="">—</option>${['Dinheiro','PIX','Cartão','Boleto','Transferência'].map(f=>opt(f)).join('')}</select>
@@ -1163,7 +1169,8 @@ function repasseHTML(){
   </table>
   <div class="flex" style="margin-top:10px">
    ${pode('*')?`<button class="btn warn" onclick="modalMulta('${from}','${to}')">⚖️ Lançar multa</button>`:''}
-   <button class="btn" onclick="pdfRepasseTodos('${from}','${to}')">🧾 Recibos do período (1 PDF)</button>
+   <button class="btn" onclick="pdfRepasseTodos('${from}','${to}')">🖨️ Imprimir / PDF — todos os recibos de uma vez</button>
+   <button class="btn ok" onclick="waRepasseTodos('${from}','${to}')">💬 Enviar todos por WhatsApp</button>
    ${hist.length?`<span class="tag t-ok">Emitidos nesta ${modo}: ${hist.length} recibos (Nº ${hist.map(h=>'TER-'+h.seq).join(', ')})</span>`:''}
   </div>
   ${(S.repasses||[]).length?`<h2 style="margin-top:14px"><span class="dot"></span>Histórico de recibos emitidos</h2>
@@ -1199,6 +1206,12 @@ function emitirRepasse(pdvId,from,to){
  S.repasses.unshift({seq:S.repSeq,pdvId,pdvNome:r.pdv.nome,from,to,bruto:r.bruto,retencoes:r.totalRetencoes,liquido:r.liquido,emitidoEm:new Date().toLocaleString('pt-BR'),emitidoPor:nomeUsu()});
  aud('Repasse emitido',`TER-${S.repSeq} — ${r.pdv.nome} — ${fmtM(r.liquido)}`);
  save();pdfRepasse(pdvId,from,to);render();
+}
+function waRepasseTodos(from,to){
+ const reps=calcRepasse(from,to).filter(r=>r.bruto>0||r.luz>0||r.outrosT>0||r.multasT>0);
+ if(!reps.length)return alert('Sem recibos no período.');
+ const txt=reps.map(r=>waRepasse(r,from,to)).join(String.fromCharCode(10)+String.fromCharCode(10)+'──────────'+String.fromCharCode(10)+String.fromCharCode(10));
+ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
 }
 function repasseDocHTML(r,from,to){
  const p=r.pdv,emp=S.params.empresaParque||{nome:'—',cnpj:'—'};
