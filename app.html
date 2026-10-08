@@ -167,6 +167,7 @@ function seed(){
   }});
  aud('Sistema','Carga inicial criada — histórico 2.2/2025 importado ('+(HIST_2025.registros||[]).length+' registros, jan–out/2025)');
  save();
+ if(CLOUD_ENABLED)syncPush();
 }
 function load(){try{const r=localStorage.getItem(PKEY);if(r){S=JSON.parse(r);
   // migração v1.0 → v1.1: perfis antigos → novo modelo (Gerente/Validação/Diretoria)
@@ -1392,7 +1393,8 @@ function bodyHTML(){
 (async function boot(){
  const local=location.protocol==='file:'||location.hostname==='localhost'||location.hostname==='127.0.0.1';
  if(!local){
-  try{const r=await fetch('/data');if(r.ok){const d=await r.json();if(d&&d.pdvs){S=d;CLOUD_ENABLED=true;localStorage.setItem(PKEY,JSON.stringify(S));render();return}}}catch(e){}
+  try{const r=await fetch('/data');if(r.ok){const d=await r.json();if(d&&d.pdvs&&d.pdvs.length){S=d;CLOUD_ENABLED=true;localStorage.setItem(PKEY,JSON.stringify(S));render();return}}}catch(e){}
+  CLOUD_ENABLED=true; // host publicado: sincroniza a partir de agora (mesmo sem base ainda)
  }
  load();render();
 })();
