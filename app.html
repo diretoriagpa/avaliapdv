@@ -177,6 +177,7 @@ const CAT_DESC_PADRAO=[
  ['OUTRO',null]
 ];
 let S=null, TAB='painel', SUB={}, EDIT=null;
+
 const DEF_PARAMS={roiMinimo:36,poolPct:5,pontosIniciais:100,
  pesos:{fin:35,proc:30,cli:20,pes:15},
  reguaIDC:[[90,1.00],[80,0.85],[70,0.65],[60,0.35],[0,0]],
@@ -185,12 +186,14 @@ const DEF_PARAMS={roiMinimo:36,poolPct:5,pontosIniciais:100,
  calendario:[5,7,10],tarifaKwh:1.20,minCobertura:3000,empresaParque:{nome:'GPA EVENTOS LTDA',cnpj:'50.528.457/0001-41'},
  toleranciaDesperdicio:2,reclamacaoPerda:2,
  alcaCompras:{supervisor:500,gerente:2000}}; // até 500: supervisor · até 2000: gerente · acima: diretoria (a calibrar)
+
 function uid(){return Math.random().toString(36).slice(2,10)}
 function hoje(){return new Date().toISOString().slice(0,10)}
 function mesAtual(){return hoje().slice(0,7)}
 function fmtM(v){return (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
 function fmtD(d){if(!d)return'—';const[a,b,c]=d.split('-');return c+'/'+b+'/'+a}
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
 function seed(){
  S={pdvs:[],funcs:[],forms:[],itens:[],mats:[],forns:[],lancs:[],ocors:[],desps:[],ents:[],deds:[],sais:[],apur:[],repasses:[],multas:[],fichas:[],fotos:{},metas:{},tiposDesc:[],pendenciasTipo:[],compras:[],compraSeq:0,centros:[],params:JSON.parse(JSON.stringify(DEF_PARAMS)),aud:[],usuario:null};
  S.centros=[{id:uid(),nome:'A&B geral',tipo:'setorial',ativo:true},{id:uid(),nome:'Área comum / parque',tipo:'area',ativo:true}];
@@ -303,6 +306,7 @@ function load(){try{const r=localStorage.getItem(PKEY);if(r){S=JSON.parse(r);
   (S.funcs||[]).forEach(f=>{if(f.elegivelComissao===undefined)f.elegivelComissao=(f.perfil==='gerente'||f.perfil==='operacional');delete f.classe});
   migraR1();
   return}}catch(e){} seed()}
+
 /* R1+R5: migração de tipos de desconto e validação da fórmula — roda no load E no fim do seed */
 function migraR1(){
  if(!S.tiposDesc||!S.tiposDesc.length)S.tiposDesc=CAT_DESC_PADRAO.map(([nome])=>({id:uid(),nome,ativo:true}));
@@ -336,7 +340,10 @@ function migraR1(){
 let CLOUD_ENABLED=false;
 function save(){try{localStorage.setItem(PKEY,JSON.stringify(S))}catch(e){alert('Armazenamento cheio — reduza fotos ou exporte os dados.')}
  if(CLOUD_ENABLED)syncPush()}
-function syncPush(){try{fetch('/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)}).catch(()=>{})}catch(e){}}
+function syncPush(force){try{
+ // proteção: não sobrescrever o servidor com uma base local MENOR (ex.: aparelho com cache antigo)
+ if(!force&&!S._srvBase){fetch('/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)}).catch(()=>{})}
+}catch(e){}}
 function aud(acao,detalhe){S.aud.unshift({ts:new Date().toLocaleString('pt-BR'),usuario:nomeUsu(),acao,detalhe});if(S.aud.length>400)S.aud.pop()}
 function nomeUsu(){const f=funcById(S.usuario);return f?f.nome:'—'}
 function funcById(id){return S.funcs.find(f=>f.id===id)}
@@ -359,6 +366,7 @@ function podeParam(){const u=eu();return u&&(u.perfil==='diretoria')}
 function fatorIDC(pts){for(const[lim,f]of S.params.reguaIDC){if(pts>=lim)return f}return 0}
 function rotuloIDC(pts){return pts>=90?'Superior':pts>=80?'Adequado':pts>=70?'Em recuperação':pts>=60?'Insuficiente':'Crítico'}
 function corIDC(pts){return pts>=90?'t-ok':pts>=80?'t-info':pts>=70?'t-warn':'t-err'}
+
 /* ---------- DASHBOARD DIRETORIA/GERENTE (modelo "Alimentos e Bebidas" — FEVEREIRO_2.pdf) ---------- */
 function dashPer(){return SUB.dashMes||mesAtual()} // período no formato YYYY-MM
 function dashHTML(){
@@ -431,6 +439,7 @@ function logout(){S.usuario=null;save();go('painel')}
 function pinDe(perfil){const P=S.pins||{};if(P[perfil])return P[perfil];
  return {diretoria:'2026',gerente:'2026',supervisor:'2026',compras:'2026',almoxarife:'2026'}[perfil]||'2026'}
 function definirPin(perfil,pin){if(!S.pins)S.pins={};S.pins[perfil]=String(pin);aud('Segurança',`PIN do perfil ${PERFIS[perfil]} alterado`);save();syncPush()}
+
 /* ---------- router ---------- */
 /* v3.0 — arquitetura de navegação: grupos com subtópicos (menu lateral) */
 const TABS=[['painel','🏠','Painel'],['dash','📊','Dashboard'],['lanc','✅','Qualidade'],['equipe','👤','Equipe'],['desp','🗑️','Desperdício'],['fin','💰','Entradas e Saídas'],['rep','🧾','Repasse'],['compras','🛒','Compras'],['apur','📊','Apuração'],['rel','📄','Relatórios'],['cad','⚙️','Cadastros'],['param','🔧','Alçadas']];
@@ -543,6 +552,7 @@ function fecharMenu(){const sb=document.getElementById('sidebar');const sc=docum
 function selPDV(id){return `<select onchange="${id}fn=this.value">${S.pdvs.filter(p=>p.ativo).map(p=>`<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>`}
 function opt(v,cur){return `<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(v)}</option>`}
 function badgeStatus(st){const m={rascunho:['t-mut','Rascunho'],lancado:['t-info','Lançado'],conciliado:['t-ok','Conciliado'],previsto:['t-warn','Previsto'],pago:['t-ok','Pago'],estornado:['t-err','Estornado'],pendente:['t-warn','Pendente'],validado:['t-ok','Validado'],concluido:['t-info','Concluído'],aberta:['t-warn','Aberta'],fechada:['t-ok','Fechada']};const x=m[st]||['t-mut',st];return `<span class="tag ${x[0]}">${x[1]}</span>`}
+
 /* ---------- PAINEL ---------- */
 function painelHTML(){
  const mes=SUB.painelMes||mesAtual();
@@ -596,6 +606,7 @@ function painelHTML(){
   </table></div>
  <div class="card"><h2><span class="dot"></span>Última apuração</h2>${apurResumoHTML()}</div>`;
 }
+
 /* ================= AÇÕES (salvar/validar/excluir) ================= */
 /* ---------- LANÇAMENTOS DIÁRIOS (checklist) ---------- */
 function lancHTML(){
@@ -712,6 +723,7 @@ const FORM_TER={higiene:['Higiene e saúde dos manipuladores (uniforme, EPI, ado
  sistema:['Registro no sistema: item exato vendido, sem combinação de itens (cláusula 10)',10],
  atendimento:['Atendimento, uniformização e padrão visual "Lugar de gente feliz!"',10],
  exclusividade:['Respeito à exclusividade (açaí, picolé, sorvete, chopp) e às promoções do parque',5]};
+
 function validarFicha(id){if(!pode('validar'))return alert('Sem permissão.');const f=S.fichas.find(x=>x.id===id);f.status='validado';f.validadoPor=S.usuario;aud('Validação','Ficha de avaliação validada');save();render()}
 function pdfFichaTerc(pdvId,data){
  const ex=(S.fichas||[]).find(f=>f.pdv===pdvId&&f.data===data);
@@ -761,6 +773,7 @@ function salvarLanc(status){
 function obsItem(id,v){SUB._obs=SUB._obs||{};SUB._obs[id]=v.trim()}
 function excluirLanc(id){if(!pode('*'))return;if(confirm('Excluir este lançamento?')){S.lancs=S.lancs.filter(l=>l.id!==id);save();render()}}
 function validarLanc(id){if(!pode('validar'))return alert('Sem permissão.');const l=S.lancs.find(x=>x.id===id);l.status='validado';l.validadoPor=S.usuario;aud('Validação',`Checklist ${pdvById(l.pdv)?.nome} ${l.data} validado`);save();render()}
+
 /* ---------- PONTOS INDIVIDUAIS (Equipe) ---------- */
 function equipeHTML(){
  const mes=SUB.eqMes||mesAtual();
@@ -799,6 +812,7 @@ function salvarOcor(){
  aud('Ocorrência individual',`${tipo} — dedução ${ded} pt`);closeModal();save();render();
 }
 function validarOcor(id){if(!pode('validar'))return alert('Sem permissão.');const o=S.ocors.find(x=>x.id===id);o.status='validado';o.validadoPor=S.usuario;aud('Validação','Ocorrência validada');save();render()}
+
 /* ---------- DESPERDÍCIO ---------- */
 function despHTML(){
  const mes=SUB.dpMes||mesAtual();
@@ -841,6 +855,7 @@ function salvarDesp(){
  S.desps.push({id:uid(),pdv:document.getElementById('dPdv').value,data:document.getElementById('dData').value,mat:m.id,qtd:q,motivo:document.getElementById('dMot').value,custo:m.custo*q});
  aud('Desperdício',`${m.nome} × ${q} — ${fmtM(m.custo*q)}`);closeModal();save();render();
 }
+
 function editarEnt(id){
  if(!pode('*'))return alert('Somente o Gerente de A&B edita lançamentos.');
  const e=S.ents.find(x=>x.id===id);if(!e)return;
@@ -1091,6 +1106,7 @@ function finFluxHTML(mes){
   <button class="btn" style="margin-top:10px" onclick="pdfFluxo('${mes}')">📄 Exportar fluxo em PDF</button></div>`;
 }
 function delReg(coll,id){if(!pode('*'))return alert('Somente o Gerente de A&B exclui lançamentos.');if(confirm('Excluir este lançamento?')){S[coll]=S[coll].filter(x=>x.id!==id);save();render()}}
+
 /* ---------- REPASSE TERCEIRIZADOS ---------- */
 function calcRepasse(from,to){
  const inP=d=>d>=from&&d<=to;
@@ -1432,6 +1448,7 @@ function fecharApuracao(){
  if(existente>=0)S.apur[existente]=reg;else S.apur.push(reg);
  aud('Apuração fechada',`${mes} — pool ${fmtM(calc.pool)}`);save();render();
 }
+
 /* ---------- RELATÓRIOS ---------- */
 function relHTML(){
  return `
@@ -1532,14 +1549,15 @@ function exportJSON(){
  const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='guapi-ab-backup-'+hoje()+'.json';a.click();
 }
+
 /* ---------- CADASTROS ---------- */
 function cadHTML(){
  if(!pode('*')&&!pode('alcadas'))return '<div class="card empty">🔒 Cadastros restritos ao Gerente de A&B (metas: também Diretoria).</div>';
  const sub=SUB.cad||'pdv';
- const tabs=[['pdv','PDVs'],['func','Funcionários'],['metas','Metas por PDV'],['tipos','Tipos de desconto'],['pend','Pendências de tipo'],['form','Formulários'],['mat','Materiais'],['forn','Fornecedores']];
+ const tabs=[['pdv','PDVs'],['func','Funcionários'],['metas','Metas por PDV'],['tipos','Tipos de desconto'],['pend','Pendências de tipo'],['centros','Centros de custo'],['form','Formulários'],['mat','Materiais'],['forn','Fornecedores']];
  let body='';
  if(sub==='pdv')body=cadPDV();if(sub==='func')body=cadFunc();if(sub==='metas')body=cadMetas();
- if(sub==='tipos')body=cadTiposDesc();if(sub==='pend')body=cadPendencias();
+ if(sub==='tipos')body=cadTiposDesc();if(sub==='pend')body=cadPendencias();if(sub==='centros')body=cadCentros();
  if(sub==='form')body=cadForm();if(sub==='mat')body=cadMat();if(sub==='forn')body=cadForn();
  return `<div class="subtabs">${tabs.map(t=>`<button class="${sub===t[0]?'on':''}" onclick="SUB.cad='${t[0]}';render()">${t[1]}</button>`).join('')}</div>`+body;
 }
@@ -1628,6 +1646,32 @@ function compraReceber(id){
  save();render();
 }
 function compraCancelar(id){const c=S.compras.find(x=>x.id===id);c.status='cancelada';aud('Compras',`SC-${String(c.num).padStart(4,'0')} cancelada`);save();render()}
+
+/* ---------- CENTROS DE CUSTO ---------- */
+function cadCentros(){
+ return `<div class="card"><h2><span class="dot"></span>Centros de custo — destino das saídas e compras</h2>
+  <p class="mut">Além dos PDVs, as saídas podem ser atribuídas a centros setoriais (A&B geral) ou de área comum (luz do parque, manutenção estrutural etc.).</p>
+  <div class="flex" style="margin-top:8px"><input id="ccNome" placeholder="Nome do centro de custo (ex.: CÂMARA FRIGORÍFICA CENTRAL)" style="max-width:340px"><button class="btn" onclick="addCentro()">➕ Adicionar</button></div>
+  <table style="margin-top:10px"><tr><th>Centro</th><th>Tipo</th><th>Situação</th><th class="right">Saídas vinculadas</th><th></th></tr>
+  ${(S.centros||[]).map(c=>{const n=S.sais.filter(x=>x.centro===c.id).length;
+   return `<tr><td><b>${esc(c.nome)}</b></td><td class="mut">${c.tipo==='setorial'?'Setorial A&B':'Área comum'}</td><td>${c.ativo?'<span class="tag t-ok">Ativo</span>':'<span class="tag t-mut">Inativo</span>'}</td>
+   <td class="right">${n}</td><td><button class="btn sm ${c.ativo?'sec':''}" onclick="toggleCentro('${c.id}')">${c.ativo?'Desativar':'Ativar'}</button></td></tr>`}).join('')}
+  <tr><td colspan="3" class="mut"><i>PDVs também são centros de custo (${S.pdvs.length} cadastrados)</i></td><td class="right">${S.sais.filter(x=>pdvById(x.centro)).length}</td><td></td></tr>
+  </table></div>`;
+}
+function addCentro(){
+ if(!pode('*')&&!podeParam())return alert('Somente Gerente ou Diretoria.');
+ const n=document.getElementById('ccNome').value.trim().toUpperCase();
+ if(!n)return alert('Informe o nome.');
+ if((S.centros||[]).some(c=>c.nome===n))return alert('Centro já existe.');
+ S.centros.push({id:uid(),nome:n,tipo:'area',ativo:true});
+ aud('Centro de custo',`Criado: ${n}`);save();render();
+}
+function toggleCentro(id){
+ if(!pode('*')&&!podeParam())return alert('Somente Gerente ou Diretoria.');
+ const c=S.centros.find(x=>x.id===id);c.ativo=!c.ativo;
+ aud('Centro de custo',`${c.nome} → ${c.ativo?'ATIVO':'INATIVO'}`);save();render();
+}
 /* ---------- R1: CATÁLOGO DE TIPOS DE DESCONTO ---------- */
 function cadTiposDesc(){
  return `
@@ -1858,6 +1902,7 @@ function salvarForn(id){
  if(id)Object.assign(S.forns.find(x=>x.id===id),dados);else S.forns.push({id:uid(),...dados});
  save();closeModal();render();
 }
+
 /* ---------- importação CSV (materiais e fornecedores) ---------- */
 function parseCSV(text){
  const rows=[];let row=[],field='',inQ=false;
@@ -1915,6 +1960,7 @@ function exemploCSV(kind){
  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=kind==='mats'?'modelo-materiais.csv':'modelo-fornecedores.csv';a.click();
 }
+
 /* ---------- PARÂMETROS ---------- */
 function paramHTML(){
  if(!podeParam())return '<div class="card empty">🔒 Parâmetros restritos à Diretoria.</div>';
@@ -2026,9 +2072,11 @@ function salvarParams(){
  aud('Parâmetros','Modelo atualizado (valores anteriores registrados na trilha)');
  save();render();
 }
+
 /* ---------- modal ---------- */
 function openModal(html){const d=document.createElement('div');d.className='modalbg';d.id='mbg';d.innerHTML=`<div class="modal">${html}</div>`;d.onclick=e=>{if(e.target===d)closeModal()};document.body.appendChild(d)}
 function closeModal(){document.getElementById('mbg')?.remove()}
+
 /* ---------- router body ---------- */
 function bodyHTML(){
  switch(TAB){
@@ -2050,11 +2098,25 @@ function bodyHTML(){
 (async function boot(){
  const local=location.protocol==='file:'||location.hostname==='localhost'||location.hostname==='127.0.0.1';
  if(!local){
-  try{const r=await fetch('/data');if(r.ok){const d=await r.json();if(d&&d.pdvs&&d.pdvs.length){S=d;CLOUD_ENABLED=true;localStorage.setItem(PKEY,JSON.stringify(S));render();return}}}catch(e){}
+  try{
+   const r=await fetch('/data');
+   if(r.ok){
+    const d=await r.json();
+    const localStr=localStorage.getItem(PKEY);
+    let localS=null;try{localS=localStr?JSON.parse(localStr):null}catch(e){}
+    const srvOk=d&&d.pdvs&&d.pdvs.length;
+    const locOk=localS&&localS.pdvs&&localS.pdvs.length;
+    // servidor é a FONTE DA VERDADE quando tem base; local antigo só vence se servidor vazio
+    if(srvOk){S=d;S._srvBase=true;CLOUD_ENABLED=true;localStorage.setItem(PKEY,JSON.stringify(S));render();return}
+    if(!srvOk&&locOk){S=localS;S._srvBase=true;CLOUD_ENABLED=true;syncPush(true);render();return} // base local resgata servidor vazio
+   }
+  }catch(e){}
   CLOUD_ENABLED=true; // host publicado: sincroniza a partir de agora (mesmo sem base ainda)
  }
- load();render();
+ S._srvBase=true;load();render();
 })();
 </script>
+
+
 </body>
 </html>
