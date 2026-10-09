@@ -1070,6 +1070,33 @@ function finCapHTML(){
   </table></div>`;
 }
 function pagarSai(id){if(!pode('*'))return alert('Somente o Gerente de A&B registra pagamentos.');const s=S.sais.find(x=>x.id===id);s.status='pago';s.data=hoje();s.forma=s.forma||'PIX';aud('Pagamento',`${s.desc} — ${fmtM(s.valor)}`);save();render()}
+function finConcHTML(mes){
+ // Conciliação: para cada PDV com movimento no mês — entradas × saídas × retenção, com status
+ const pdvsComMovimento=S.pdvs.filter(p=>{
+  const e=S.ents.some(x=>x.pdv===p.id&&x.data.startsWith(mes)&&x.status!=='estornado');
+  const s2=S.sais.some(x=>x.centro===p.id&&x.data.startsWith(mes)&&x.status!=='estornado');
+  return e||s2;
+ });
+ const linhas=pdvsComMovimento.map(p=>{
+  const ent=S.ents.filter(x=>x.pdv===p.id&&x.data.startsWith(mes)&&x.status!=='estornado').reduce((a,x)=>a+x.valor,0);
+  const sai=S.sais.filter(x=>x.centro===p.id&&x.data.startsWith(mes)&&x.status!=='estornado').reduce((a,x)=>a+x.valor,0);
+  const ret=S.sais.filter(x=>x.centro===p.id&&x.data.startsWith(mes)&&x.status!=='estornado'&&(x.desc||'').toLowerCase().includes('retenção contratual')).reduce((a,x)=>a+x.valor,0);
+  const desc=sai-ret;
+  const esperado=p.formato==='terceirizado'?ent-ent*0.3-desc:ent-sai;
+  const ok=Math.abs(ret-ent*0.3)<0.02||p.formato!=='terceirizado';
+  return {p,ent,sai,ret,desc,esperado,ok};
+ });
+ const tEnt=linhas.reduce((a,l)=>a+l.ent,0),tSai=linhas.reduce((a,l)=>a+l.sai,0),tRet=linhas.reduce((a,l)=>a+l.ret,0);
+ return `<div class="card"><h2><span class="dot"></span>Conciliação — ${mes.slice(5,7)}/${mes.slice(0,4)}</h2>
+  <p class="mut">Conferência por PDV: entradas do mês × saídas × retenção contratual de 30% (terceirizados).</p>
+  <table><tr><th>PDV</th><th class="right">Entradas</th><th class="right">Retenção 30%</th><th class="right">Outros descontos</th><th class="right">A pagar ao terc.</th><th>Conferência</th></tr>
+  ${linhas.map(l=>`<tr><td><b>${esc(l.p.nome)}</b></td><td class="right">${fmtM(l.ent)}</td><td class="right">${l.ret?fmtM(l.ret):'—'}</td><td class="right">${l.desc?fmtM(l.desc):'—'}</td><td class="right">${fmtM(Math.max(0,l.p.formato==='terceirizado'?l.ent-l.ret-l.desc:l.ent-l.sai))}</td>
+  <td>${l.p.formato==='terceirizado'?(l.ok?'<span class="tag t-ok">✓ 30% confere</span>':'<span class="tag t-warn">⚠ Verificar</span>'):'<span class="tag t-info">Próprio</span>'}</td></tr>`).join('')}
+  <tr><td><b>TOTAL</b></td><td class="right"><b>${fmtM(tEnt)}</b></td><td class="right"><b>${fmtM(tRet)}</b></td><td></td><td></td><td></td></tr>
+  </table>
+  ${linhas.some(l=>!l.ok)?'<p class="mut" style="margin-top:8px">⚠ PDVs com retenção divergente do contrato (30% do bruto) — conferir lançamentos.</p>':'<p class="mut" style="margin-top:8px">✅ Todas as retenções conferem com o contrato (30% do bruto).</p>'}
+  </div>`;
+}
 function finFluxHTML(mes){
  const F=calcFinanceiro(mes);
  const ss=S.sais.filter(s=>s.data.startsWith(mes)&&s.status!=='estornado');
